@@ -1,36 +1,61 @@
-import cv2
+import math
+
+import cv2 as cv
 import numpy as np
 
-image = cv2.imread("Blocks.jpeg")
-hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+image = cv.imread("Blocks.jpeg")
+height, width = image.shape[:2]
 
-lower_color = np.array([0, 130, 70])   # lower bound of color in HSV
-upper_color = np.array([10, 255, 255]) # upper bound of color in HSV
-mask = cv2.inRange(hsv, lower_color, upper_color)
-contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+CENTER_Y = height/2
+CENTER_X = width/2
+
+hsv = cv.cvtColor(image, cv.COLOR_BGR2HSV)
+
+lowerBound = np.array([0, 130, 70])
+upperBound = np.array([10, 255, 255]) 
+mask = cv.inRange(hsv, lowerBound, upperBound)
+contours, n = cv.findContours(mask, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE) # setup
+
+class colorRGB:      # just data class
+    def __init__(self, r, g, b):
+        self.r = r
+        self.g = g
+        self.b = b
+
+def condition(w,h):
+    conA = (400 <= w <= 600) and (800 <= h <= 1200)
+    conB = (400 <= h <= 600) and (800 <= w <= 1200)
+    return conA or conB
+def draw(rect, rgb:colorRGB):
+    box = cv.boxPoints(rect)
+    box = np.int64(box)
+    cv.drawContours(image, [box], 0, (rgb.r, rgb.g, rgb.b), 3)
+
+
+rects = [[cv.RotatedRect((0.0,0.0), (0.0,0.0), 0.0), math.sqrt((CENTER_X-0.0)**2 + (CENTER_Y-0.0)**2)]]
 
 for contour in contours:
-    rect = cv2.minAreaRect(contour) 
-    x,y = rect[1]
-    print(x,y)
-    if (x>300) and (y>300):  # checks if box is large enough
-        print("2",rect[2])
-        print("rect",rect)
-        angle = rect[-1]
-        if angle<-45:
-            angle+=90
-        print("angle",rect[-1])  # outpus angles
-        box = cv2.boxPoints(rect)  # makes the boxes
-        box = np.int64(box)
-        cv2.drawContours(image, [box], 0, (0,255,0),2)
-        cv2.imshow("Outlined Image", image)
-        cv2.waitKey(0)
+    rect = cv.minAreaRect(contour)
+    w, h = rect[1]
+    if condition(w,h):
+        newRect = [cv.RotatedRect(rect[0], rect[1], rect[2]),math.sqrt((CENTER_X-rect[0][0])**2 + (CENTER_Y-rect[0][1])**2)] # in order in terms of distance to center
+        inserted = False
+        for i, val in enumerate(rects):
+            if newRect[1] <= val[1]:
+                rects.insert(i, newRect)
+                inserted = True
+                break
+        if not inserted:
+            rects.append(newRect)
+        draw(rect, colorRGB(0, 255, 0))
 
+for i in rects:
+    print(i[0].center[0],i[0].center[1], i[1])
 
-#cv2.drawContours(image, contours, -1, (250, 250, 250), 2)  # green outline
+draw(rects[0][0], colorRGB(255, 0, 0))
+outputAngle = rects[0][0].angle
+print(outputAngle) # closest to the center and angle to give to differential Rotator
 
-# Show the output
-cv2.imshow("Outlined Image", image)
-cv2.imshow("Mask", mask)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+cv.imshow("Blocks", image)
+cv.waitKey(0)
+cv.destroyAllWindows()
